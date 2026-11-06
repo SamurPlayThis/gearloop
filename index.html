@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#171b25">
+<title>GEARLOOP</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--bg:#171b25;--panel:#222938;--panel2:#2c3547;--line:#3d4960;--text:#f3f5fa;--muted:#aab4c6;--gold:#ffd36b;--green:#8bd59b;--blue:#79b8ef}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,sans-serif;overflow:hidden}
+button{font:inherit;color:inherit;border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:9px 12px;cursor:pointer}
+button:active{transform:translateY(1px);filter:brightness(1.15)}button:disabled{opacity:.4;cursor:not-allowed}
+#app{height:100dvh;display:flex;flex-direction:column;max-width:1000px;margin:auto}
+header{display:flex;align-items:center;justify-content:space-between;padding:10px 13px;background:#202634;border-bottom:1px solid var(--line);gap:8px}
+.brand{font-weight:1000;letter-spacing:1.5px;font-size:18px}.brand span{color:var(--gold)}
+.stats{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}.stat{background:#303a4c;border:1px solid #46536a;border-radius:9px;padding:6px 9px;font-size:12px;white-space:nowrap}.stat b{color:var(--gold)}
+#factoryBar{display:flex;gap:7px;padding:8px 10px;overflow-x:auto;background:#1c2230;scrollbar-width:none}#factoryBar button{white-space:nowrap;font-size:12px}#factoryBar button.active{border-color:var(--gold);background:#51452d;color:#ffe4a1}
+#sceneWrap{position:relative;flex:1;min-height:220px;background:#b9ad8b;overflow:hidden}
+canvas{width:100%;height:100%;display:block;touch-action:pan-y}
+#hint{position:absolute;top:9px;left:9px;background:#18202ddd;border:1px solid #ffffff25;border-radius:9px;padding:6px 9px;font-size:11px;color:#e8edf6;pointer-events:none}
+#toast{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);background:#111a;color:white;padding:8px 12px;border-radius:9px;font-size:12px;opacity:0;transition:.2s;pointer-events:none;white-space:nowrap}
+#bottom{background:#202634;border-top:1px solid var(--line);padding:9px 10px calc(9px + env(safe-area-inset-bottom));}
+#actionRow{display:flex;gap:7px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none}
+.tool{min-width:82px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;padding:7px 8px}.tool .emoji{font-size:21px}.tool.selected{border-color:var(--gold);background:#51452d}
+#info{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--muted)}
+#info strong{color:var(--text)}.right{display:flex;gap:6px}
+#panel{position:absolute;inset:auto 10px 10px 10px;background:#202938f5;border:1px solid #56647a;border-radius:13px;padding:12px;display:none;box-shadow:0 8px 30px #0007;z-index:5}
+#panel h3{margin:0 0 5px;font-size:15px}#panel p{margin:0 0 10px;color:var(--muted);font-size:12px}#panel .buttons{display:flex;gap:7px;flex-wrap:wrap}#panel button{font-size:12px}
+#overlay{position:absolute;inset:0;background:#101621dd;display:none;align-items:center;justify-content:center;padding:18px;z-index:10}
+.premiumHero{background:linear-gradient(135deg,#51452d,#272f3e);border:1px solid #b9974e;border-radius:13px;padding:13px;margin:10px 0;color:#ffe6a6}
+.perk{padding:7px 0;border-bottom:1px solid #ffffff16;font-size:13px}.premiumPrice{font-size:25px;font-weight:900;color:#ffdc83}
+.modal{width:min(420px,100%);background:#222b3b;border:1px solid #526078;border-radius:16px;padding:17px}.modal h2{margin:0 0 8px}.modal p{color:var(--muted);font-size:13px;line-height:1.45}.modal button{margin:4px 4px 0 0}
+@media(min-width:700px){#app{border-left:1px solid #30394a;border-right:1px solid #30394a}header{padding:13px 18px}.brand{font-size:21px}.tool{min-width:105px}.stat{font-size:13px}}
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+  <div class="brand">GEARLOOP <span>24</span></div>
+  <div class="stats">
+    <div class="stat">🪙 <b id="coins">250</b></div>
+    <div class="stat">⚙️ <b id="gears">0</b></div>
+    <div class="stat">📦 <b id="storage">0/100</b></div>
+    <button id="premiumBtn" style="padding:6px 9px;font-size:12px;border-color:#b9974e;background:#51452d;color:#ffe3a0">👑 Premium</button>
+  </div>
+</header>
+<nav id="factoryBar"></nav>
+<main id="sceneWrap">
+  <canvas id="scene"></canvas>
+  <div id="hint">Перемещайся по фабрике • нажми на станок для управления</div>
+  <div id="toast"></div>
+  <section id="panel"></section>
+  <div id="overlay"><div class="modal" id="modal"></div></div>
+</main>
+<footer id="bottom">
+  <div id="actionRow">
+    <button class="tool selected" data-tool="select"><span class="emoji">👆</span>Выбрать</button>
+    <button class="tool" data-tool="belt"><span class="emoji">➡️</span>Конвейер <small>15 🪙</small></button>
+    <button class="tool" data-tool="miner"><span class="emoji">⛏️</span>Добытчик <small>80 🪙</small></button>
+    <button class="tool" data-tool="press"><span class="emoji">🏭</span>Пресс <small>120 🪙</small></button>
+    <button class="tool" data-tool="assembler"><span class="emoji">🦾</span>Сборщик <small>180 🪙</small></button>
+    <button class="tool" data-tool="sell"><span class="emoji">📮</span>Продажа <small>100 🪙</small></button>
+    <button class="tool" data-tool="erase"><span class="emoji">🧹</span>Удалить</button>
+  </div>
+  <div id="info"><span id="status"><strong>Выбор:</strong> нажми на оборудование</span><div class="right"><button id="upgradeBtn">⬆ Улучшения</button><button id="saveBtn">💾</button></div></div>
+</footer>
+</div>
+<script>
+(()=>{
+const tg=window.Telegram?.WebApp; if(tg){tg.ready();tg.expand();try{tg.setHeaderColor('#202634');tg.setBackgroundColor('#171b25')}catch(e){}}
+const canvas=document.getElementById('scene'),ctx=canvas.getContext('2d');
+const $=id=>document.getElementById(id);
+const W=14,H=11,TW=54,TH=28;
+const prices={belt:15,miner:80,press:120,assembler:180,sell:100};
+const names={belt:'Конвейер',miner:'Добытчик',press:'Промышленный пресс',assembler:'Робот-сборщик',sell:'Пункт отгрузки'};
+const emojis={belt:'➡️',miner:'⛏️',press:'🏭',assembler:'🦾',sell:'📮'};
+const factories=[
+ {id:'starter',name:'Стартовый цех',unlock:0,desc:'Твоя первая производственная площадка'},
+ {id:'desert',name:'Пустынный завод',unlock:1500,desc:'Новая площадка для расширенного производства'},
+ {id:'frost',name:'Северный комплекс',unlock:6000,desc:'Холодный регион и больше места'}
+];
+let state={coins:250,gears:0,produced:0,selectedFactory:'starter',tool:'select',machines:[],unlocked:['starter'],level:1,last:Date.now(),inventory:0};
+let tick=0,selected=null,toastTimer;
+function load(){try{let s=JSON.parse(localStorage.getItem('gearloop_save'));if(s)state={...state,...s}}catch(e){}}
+function save(){localStorage.setItem('gearloop_save',JSON.stringify(state));toast('Прогресс сохранён')}
+function toast(s){$('toast').textContent=s;$('toast').style.opacity=1;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').style.opacity=0,1700)}
+function activeMachines(){return state.machines.filter(m=>m.factory===state.selectedFactory)}
+function resize(){let r=canvas.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);canvas.width=Math.round(r.width*d);canvas.height=Math.round(r.height*d);ctx.setTransform(d,0,0,d,0,0);draw()}
+function iso(x,y){let ox=canvas.clientWidth/2,oy=canvas.clientHeight*.48-(W+H)*TH*.25;return {x:ox+(x-y)*TW/2,y:oy+(x+y)*TH/2}}
+function poly(points,fill,stroke='#5a594f'){ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.fillStyle=fill;ctx.fill();ctx.strokeStyle=stroke;ctx.lineWidth=1;ctx.stroke()}
+function diamond(x,y,color){poly([{x,y:y-TH/2},{x:x+TW/2,y},{x,y:y+TH/2},{x:x-TW/2,y}],color)}
+function tile(x,y){let p=iso(x,y);diamond(p.x,p.y,(x+y)%2?'#d7caa6':'#dfd2af');ctx.strokeStyle='#c2b58f';ctx.lineWidth=.5;ctx.beginPath();ctx.moveTo(p.x-TW/2,p.y);ctx.lineTo(p.x+TW/2,p.y);ctx.stroke()}
+function drawMachine(m){
+ let p=iso(m.x,m.y),x=p.x,y=p.y;
+ if(m.type==='belt'){
+  diamond(x,y+2,'#263d61','#182a46');diamond(x,y-1,'#365783','#7890a5');
+  for(let i=0;i<3;i++){let q=iso(m.x+(i-1)*.22,m.y);ctx.fillStyle='#e9b93f';ctx.fillRect(q.x-2,q.y-2,5,3)}
+  let phase=(tick/5)%1;ctx.fillStyle='#a8c6d8';ctx.beginPath();ctx.arc(x-10+phase*20,y-4,3,0,7);ctx.fill();
+ }else{
+  let colors={miner:['#657d58','#40583f','#9db17a'],press:['#80649b','#55436f','#b394c9'],assembler:['#667b91','#3e536c','#a4bbce'],sell:['#bf8242','#80512e','#e2b66e']};
+  let c=colors[m.type]||colors.press;
+  poly([{x:x-22,y:y-8},{x:x,y:y-20},{x:x+24,y:y-8},{x:x,y:y+5}],c[0]);
+  poly([{x:x-22,y:y-8},{x:x,y:y+5},{x:x,y:y+24},{x:x-22,y:y+11}],c[1]);
+  poly([{x:x,y:y+5},{x:x+24,y:y-8},{x:x+24,y:y+11},{x:x,y:y+24}],c[2]);
+  ctx.fillStyle='#263247';ctx.fillRect(x-7,y-9,13,7);
+  ctx.fillStyle=m.type==='miner'?'#d7b34e':m.type==='assembler'?'#83d0bd':'#e6a65c';
+  ctx.fillRect(x-4,y-8,6,4);
+  if(m.type==='assembler'){ctx.strokeStyle='#d5dce5';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x+5,y-15);ctx.lineTo(x+16,y-27+Math.sin(tick/8)*3);ctx.lineTo(x+22,y-23);ctx.stroke()}
+  if(m.type==='miner'){ctx.fillStyle='#f5d45f';ctx.fillRect(x-4,y-25,8,4)}
+ }
+ if(selected===m.id){ctx.strokeStyle='#ffe17a';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(x,y+7,30,15,0,0,Math.PI*2);ctx.stroke()}
+}
+function draw(){
+ let w=canvas.clientWidth,h=canvas.clientHeight;if(!w||!h)return;
+ ctx.clearRect(0,0,w,h);ctx.fillStyle='#c7ba98';ctx.fillRect(0,0,w,h);
+ // distant factory floor
+ for(let s=0;s<W+H;s++)for(let x=0;x<W;x++){let y=s-x;if(y>=0&&y<H)tile(x,y)}
+ // decorative hazard markings and background props
+ for(let i=0;i<5;i++){let p=iso(1+i*3,1);ctx.fillStyle='#4b5361';ctx.fillRect(p.x-7,p.y-23,14,22);ctx.fillStyle='#eacb53';ctx.fillRect(p.x-5,p.y-18,3,12)}
+ activeMachines().slice().sort((a,b)=>(a.x+a.y)-(b.x+b.y)).forEach(drawMachine);
+ // tiny worker
+ let wp=iso(6,5);ctx.fillStyle='#29374c';ctx.fillRect(wp.x-5,wp.y-13,10,13);ctx.fillStyle='#f0c49b';ctx.fillRect(wp.x-4,wp.y-21,8,8);ctx.fillStyle='#5b3828';ctx.fillRect(wp.x-5,wp.y-23,10,4);
+ ctx.fillStyle='#35435a';ctx.font='11px system-ui';ctx.fillText('GEARLOOP',12,canvas.clientHeight-12);
+}
+function renderStats(){$('coins').textContent=Math.floor(state.coins).toLocaleString('ru-RU');$('gears').textContent=state.gears;$('storage').textContent=Math.min(state.inventory,100)+'/100';}
+function renderFactories(){$('factoryBar').innerHTML='';factories.forEach(f=>{let b=document.createElement('button');let ok=state.unlocked.includes(f.id);b.textContent=(ok?'🏭 ':'🔒 ')+f.name+(ok?'':` · ${f.unlock} 🪙`);b.className=state.selectedFactory===f.id?'active':'';b.onclick=()=>{if(!ok){if(state.coins<f.unlock)return toast('Не хватает монет');state.coins-=f.unlock;state.unlocked.push(f.id);toast('Новая фабрика открыта!')}state.selectedFactory=f.id;selected=null;closePanel();renderFactories();renderStats();draw()};$('factoryBar').append(b)})}
+function setTool(t){state.tool=t;document.querySelectorAll('.tool').forEach(b=>b.classList.toggle('selected',b.dataset.tool===t));$('status').innerHTML='<strong>Режим:</strong> '+({select:'выбор оборудования',erase:'удаление',belt:'размещение конвейера',miner:'размещение добытчика',press:'размещение пресса',assembler:'размещение робота',sell:'размещение отгрузки'}[t]);}
+document.querySelectorAll('.tool').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
+function cellFromEvent(e){let r=canvas.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top,ox=canvas.clientWidth/2,oy=canvas.clientHeight*.48-(W+H)*TH*.25,dx=mx-ox,dy=my-oy;let gx=dy/TH+dx/TW,gy=dy/TH-dx/TW;return {x:Math.round(gx),y:Math.round(gy)}}
+function machineAt(x,y){return activeMachines().find(m=>m.x===x&&m.y===y)}
+canvas.addEventListener('click',e=>{let c=cellFromEvent(e);if(c.x<0||c.x>=W||c.y<0||c.y>=H)return;let found=machineAt(c.x,c.y);
+ if(state.tool==='select'){if(found){selected=found.id;showPanel(found)}else{selected=null;closePanel()}draw();return}
+ if(state.tool==='erase'){if(found){state.machines=state.machines.filter(m=>m.id!==found.id);selected=null;closePanel();draw();save()}return}
+ if(found)return toast('Клетка занята');
+ let cost=prices[state.tool];if(state.coins<cost)return toast('Недостаточно монет!');
+ state.coins-=cost;let m={id:Date.now()+Math.random(),type:state.tool,x:c.x,y:c.y,factory:state.selectedFactory,progress:0};state.machines.push(m);renderStats();draw();save();
+});
+function showPanel(m){let p=$('panel');p.style.display='block';p.innerHTML=`<h3>${emojis[m.type]} ${names[m.type]}</h3><p>${m.type==='belt'?'Перемещает материалы по производственной линии.':m.type==='miner'?'Добывает сырьё для дальнейшей переработки.':m.type==='press'?'Перерабатывает сырьё в детали.':m.type==='assembler'?'Собирает готовые механизмы.':'Отправляет готовую продукцию и приносит монеты.'}</p><div class="buttons"><button id="upgradeMachine">⬆ Улучшить · ${80*m.level||80} 🪙</button><button id="removeMachine">Продать за ${Math.floor((prices[m.type]||0)*.5)} 🪙</button><button id="closeMachine">Закрыть</button></div>`;$('upgradeMachine').onclick=()=>{let cost=80*(m.level||1);if(state.coins<cost)return toast('Не хватает монет');state.coins-=cost;m.level=(m.level||1)+1;renderStats();showPanel(m);save();toast('Станок улучшен!')};$('removeMachine').onclick=()=>{state.machines=state.machines.filter(x=>x.id!==m.id);state.coins+=Math.floor((prices[m.type]||0)*.5);selected=null;closePanel();renderStats();draw();save()};$('closeMachine').onclick=closePanel}
+function closePanel(){$('panel').style.display='none'}
+function modal(title,body,buttons){$('modal').innerHTML=`<h2>${title}</h2><p>${body}</p>${buttons}`;$('overlay').style.display='flex'}
+$('overlay').onclick=e=>{if(e.target===$('overlay'))$('overlay').style.display='none'};
+$('upgradeBtn').onclick=()=>modal('Улучшения фабрики','Уровень фабрики: '+state.level+'. Улучшения увеличивают скорость производства и вместимость склада.',`<button id="factoryUpgrade">Улучшить · ${state.level*250} 🪙</button><button id="modalClose">Закрыть</button>`); 
+
+function openPremium(){
+ const owned=!!state.premium;
+ modal('👑 GEARLOOP PREMIUM',
+ `<div class="premiumHero"><div style="font-weight:900;letter-spacing:1px">GEARLOOP PREMIUM</div><div class="premiumPrice">79 ⭐ / месяц</div><div style="font-size:11px;color:#ead9ad">Предлагаемая цена подписки</div></div>
+ <div class="perk">🪙 +15% к доходу от продажи продукции</div>
+ <div class="perk">📋 +2 дополнительных слота заданий</div>
+ <div class="perk">✨ Эксклюзивные оформления фабрики</div>
+ <div class="perk">👑 Золотая рамка и значок профиля</div>
+ <div class="perk">🎁 Ежемесячный косметический подарок</div>
+ <p style="margin-top:10px">${owned?'Premium активирован в локальном демо-режиме.':'Покупка подключается через Telegram Stars и серверную проверку платежа. В этом прототипе оплата ещё не подключена.'}</p>`,
+ `<button id="premiumBuy" ${owned?'disabled':''}>${owned?'Уже активировано':'Подключить оплату ⭐'}</button><button id="premiumClose">Закрыть</button>`);
+ $('premiumBuy').onclick=()=>{toast('Оплата Stars будет подключена на серверном этапе');};
+ $('premiumClose').onclick=()=>$('overlay').style.display='none';
+}
+$('premiumBtn').onclick=openPremium;
+
+$('saveBtn').onclick=save;
+setInterval(()=>{tick++;let ms=Date.now()-state.last;state.last=Date.now();let rate=activeMachines().filter(m=>m.type==='miner').reduce((a,m)=>a+(.25*(m.level||1)),0);let presses=activeMachines().filter(m=>m.type==='press').length;let assemblers=activeMachines().filter(m=>m.type==='assembler').length;let sellers=activeMachines().filter(m=>m.type==='sell').length;
+ state.inventory=Math.min(100,state.inventory+rate*(ms/1000));let made=Math.min(state.inventory,presses*.18*(ms/1000));state.inventory-=made;state.gears+=Math.floor(made);state.produced+=made;
+ let income=sellers?Math.min(state.gears,sellers*.12*(ms/1000))*12*(state.premium?1.15:1):0;state.gears-=income/12;state.coins+=income;
+ if(assemblers&&state.gears>=1){let n=Math.min(state.gears,assemblers*.08*(ms/1000));state.gears-=n;state.coins+=n*22}
+ renderStats();draw();
+},250);
+$('factoryUpgrade').onclick=()=>{let cost=state.level*250;if(state.coins<cost)return toast('Не хватает монет');state.coins-=cost;state.level++;$('overlay').style.display='none';renderStats();toast('Фабрика улучшена!');save()};
+$('modalClose').onclick=()=>$('overlay').style.display='none';
+load();renderFactories();renderStats();setTool('select');window.addEventListener('resize',resize);resize();setInterval(save,15000);
+if(!state.machines.length){toast('Поставь добытчик, пресс и пункт отгрузки!')}
+})();
+</script>
+</body></html>
